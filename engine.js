@@ -255,7 +255,7 @@
   }
 
   /* ---------- El nodo de azar visto desde el humano ----------
-   * Para cada una de las 21 tiradas del agente: ¿puede golpear?, y valor
+   * Para cada una de las 21 tiradas del agente: ¿puede comer una ficha?, y valor
    * de la posición después de su mejor respuesta según la EVAL. */
   function chanceNode(s, W = WEIGHTS) {
     const now = evaluate(s, W);

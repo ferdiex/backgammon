@@ -23,10 +23,10 @@ ok(BG.sequences(b, "H", [3, 5]).length === 0, "barra bloqueada: no hay jugadas, 
 // Barra: con fichas en la barra, solo se puede entrar primero
 let b2 = BG.initial(); b2.pts[5] -= 1; b2.barH = 1;
 ok(BG.sequences(b2, "H", [3, 1]).every(x => x.seq[0].from === 25), "con ficha en la barra, la primera jugada es entrar");
-// Golpe: entrar sobre una ficha sola del agente la manda a la barra
+// Comer: caer en una ficha suelta del agente la manda a la barra
 let g = empty(); g.pts[5] = 15; g.pts[2] = -1; g.pts[20] = -14;
 const hit = BG.distinctResults(g, "H", [3, 2]).find(x => x.state.barA === 1);
-ok(!!hit, "golpe: caer en una ficha sola del agente la manda a la barra");
+ok(!!hit, "comer: caer en una ficha suelta del agente la manda a la barra");
 
 // Regla del dado mayor: solo se puede usar uno de los dos dados
 let L = empty(); L.pts[11] = 1; L.pts[0] = 14;          // humano: 1 en el 12 y 14 en el 1 (no todas en casa)

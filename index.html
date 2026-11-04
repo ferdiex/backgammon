@@ -112,7 +112,7 @@ a{color:inherit; text-underline-offset:3px}
 <div class="wrap">
   <header>
     <h1>Backgammon</h1>
-    <p>Juegas contra un agente expectiminimax. Después de cada jugada tuya verás el nodo de azar: las 21 tiradas posibles del agente, cuáles te harían daño y la probabilidad de que te golpee.</p>
+    <p>Juegas contra un agente expectiminimax. Después de cada jugada tuya verás el nodo de azar: las 21 tiradas posibles del agente, cuáles te harían daño y la probabilidad de que te coma una ficha.</p>
   </header>
 
   <div class="layout">
@@ -139,7 +139,7 @@ a{color:inherit; text-underline-offset:3px}
     <section aria-label="Análisis">
       <div class="block" aria-live="polite">
         <h2>El nodo de azar</h2>
-        <div id="chance"><p class="empty">Cuando termines tu turno, aquí aparecerán las 21 tiradas posibles del agente: qué tan mal te iría con cada una y cuántas te pueden golpear.</p></div>
+        <div id="chance"><p class="empty">Cuando termines tu turno, aquí aparecerán las 21 tiradas posibles del agente: qué tan mal te iría con cada una y en cuántas te pueden comer una ficha.</p></div>
       </div>
       <div class="block" aria-live="polite">
         <h2>Lo que pensó el agente</h2>
@@ -151,7 +151,7 @@ a{color:inherit; text-underline-offset:3px}
           <li>Cada jugador tiene 15 fichas. Tú juegas con las claras y avanzas del punto 24 al 1: por arriba de derecha a izquierda y por abajo de izquierda a derecha. Tu casa son los puntos 1 a 6, abajo a la derecha.</li>
           <li>Para empezar, cada jugador tira un solo dado. El que saca el número mayor empieza, y su primera jugada usa los dos números que salieron. Si empatan, se tira otra vez.</li>
           <li>Cada dado es un movimiento de una ficha. Con dobles mueves cuatro veces. Debes usar ambos dados si puedes; si solo cabe uno, el mayor.</li>
-          <li>No puedes caer en un punto con dos o más fichas del rival. Si caes en una ficha <b>sola</b> del rival, la golpeas: se va a la barra, en medio del tablero.</li>
+          <li>No puedes caer en un punto con dos o más fichas del rival. Si caes en una ficha <b>suelta</b> del rival (sola en un punto), te la comes: se va a la barra, en medio del tablero.</li>
           <li>Con una ficha en la barra, primero debes entrarla en la casa del rival, arriba a la derecha: con un 1 entras al 24 y con un 6, al 19.</li>
           <li>Cuando todas tus fichas están en tu casa, empiezas a sacarlas. Gana quien saque sus 15 fichas primero.</li>
           <li>Para mover: toca una ficha (se marcan en naranja las que puedes mover) y luego el punto destino. Para sacar, toca la bandeja de la derecha.</li>
@@ -160,7 +160,7 @@ a{color:inherit; text-underline-offset:3px}
       <details>
         <summary>Cómo decide el agente</summary>
         <p>Expectiminimax de un nivel. Para cada jugada posible con sus dados, el agente considera las 21 tiradas tuyas, supone que responderás con tu mejor jugada y promedia, ponderando cada tirada por su probabilidad (1/36 los dobles, 1/18 las demás). Elige la jugada con el mejor promedio. Para ahorrar tiempo, solo analiza a fondo sus 12 jugadas más prometedoras.</p>
-        <p>La función de evaluación, desde tu punto de vista, suma: la diferencia de pips (cuánto le falta a cada uno para terminar), 4 puntos por cada ficha sola del rival menos cada ficha sola tuya, 3 por cada punto cerrado en tu casa menos los del rival, y 2 por cada ficha del rival en la barra menos las tuyas. En una carrera sin contacto solo cuentan los pips.</p>
+        <p>La función de evaluación, desde tu punto de vista, suma: la diferencia de pips (cuánto le falta a cada uno para terminar), 4 puntos por cada ficha suelta del rival menos cada ficha suelta tuya, 3 por cada punto cerrado en tu casa menos los del rival, y 2 por cada ficha del rival en la barra menos las tuyas. En una carrera sin contacto solo cuentan los pips.</p>
         <p>Código: <a href="https://github.com/ferdiex/backgammon">github.com/ferdiex/backgammon</a></p>
       </details>
     </section>
@@ -402,13 +402,13 @@ a{color:inherit; text-underline-offset:3px}
       if (b < a) { cells += '<div class="cell blank"></div>'; continue; }
       const r = c.rows.find(x => (x.dice[0] === b && x.dice[1] === a) || (x.dice[0] === a && x.dice[1] === b));
       const isRolled = rolled && ((rolled[0] === a && rolled[1] === b) || (rolled[0] === b && rolled[1] === a));
-      cells += `<div class="cell ${cls(r.value)} ${isRolled ? "rolled" : ""}" title="${a}-${b}: ${r.hit ? "te puede golpear; " : ""}valor ${fmtVal(r.value)}"><b>${a}-${b}${r.hit ? '<span class="hit" aria-label="golpe"></span>' : ""}</b><small>${a === b ? "1/36" : "1/18"}</small></div>`;
+      cells += `<div class="cell ${cls(r.value)} ${isRolled ? "rolled" : ""}" title="${a}-${b}: ${r.hit ? "te puede comer una ficha; " : ""}valor ${fmtVal(r.value)}"><b>${a}-${b}${r.hit ? '<span class="hit" aria-label="puede comerte una ficha"></span>' : ""}</b><small>${a === b ? "1/36" : "1/18"}</small></div>`;
     }
     const pct = Math.round(100 * c.shots / 36);
     $("chance").innerHTML = `
-      <p class="big">Te pueden golpear en ${c.shots} de 36 tiradas (${pct}%)</p>
+      <p class="big">Te pueden comer una ficha en ${c.shots} de 36 tiradas (${pct}%)</p>
       <div class="grid21" role="img" aria-label="Las 21 tiradas del agente">${cells}</div>
-      <div class="keys"><span style="--k:var(--bad)">muy mala para ti</span><span style="--k:var(--bad-soft)">mala</span><span style="--k:var(--mid-soft)">promedio</span><span style="--k:var(--good-soft)">buena</span><span>● puede golpearte</span></div>
+      <div class="keys"><span style="--k:var(--bad)">muy mala para ti</span><span style="--k:var(--bad-soft)">mala</span><span style="--k:var(--mid-soft)">promedio</span><span style="--k:var(--good-soft)">buena</span><span>● puede comerte una ficha</span></div>
       <dl><dt>Valor esperado</dt><dd>${fmtVal(exp)}</dd>${rolled ? `<dt>Salió</dt><dd>${rolled.join("\u2011")}: valor ${fmtVal(c.rows.find(x => (x.dice[0] === Math.max(...rolled) && x.dice[1] === Math.min(...rolled))).value)}</dd>` : ""}</dl>
       <p class="empty" style="margin-top:.5rem">Cada casilla es una tirada del agente seguida de su mejor respuesta según su evaluación. El valor esperado es el promedio ponderado por la probabilidad de cada tirada: positivo es bueno para ti.</p>`;
   }
@@ -429,7 +429,7 @@ a{color:inherit; text-underline-offset:3px}
     s = BG.initial(); start = s; dice = []; done = []; seqs = []; sel = null; last = []; hint = null; chance = null; over = false; turn = "H";
     phase = "opening"; openDice = null;
     $("hintBox").innerHTML = "";
-    $("chance").innerHTML = '<p class="empty">Cuando termines tu turno, aquí aparecerán las 21 tiradas posibles del agente: qué tan mal te iría con cada una y cuántas te pueden golpear.</p>';
+    $("chance").innerHTML = '<p class="empty">Cuando termines tu turno, aquí aparecerán las 21 tiradas posibles del agente: qué tan mal te iría con cada una y en cuántas te pueden comer una ficha.</p>';
     $("thought").innerHTML = '<p class="empty">Todavía no ha jugado.</p>';
     status("Para empezar, cada quien tira un dado: el número mayor empieza.");
     refresh();

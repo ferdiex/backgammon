@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Backgammon: el azar a la vista</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F1F4F1; --surface:#FFFFFF; --ink:#1D2827; --muted:#56635F; --rule:#CBD5D0;
+  --active:#3E5A55; --on-active:#FFFFFF; --focus:#B07D12;
+  --bad:#B4533A; --bad-soft:#E9C3B6; --mid-soft:#E4E8E3; --good-soft:#C9DDD3; --good:#3E7A62;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#121918; --surface:#1A2322; --ink:#E4ECE8; --muted:#9DACA7; --rule:#2B3836;
+    --active:#8FC3B0; --on-active:#121918; --focus:#E3B04B;
+    --bad:#E08A70; --bad-soft:#5A2E24; --mid-soft:#26302F; --good-soft:#244238; --good:#8FC3B0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#121918; --surface:#1A2322; --ink:#E4ECE8; --muted:#9DACA7; --rule:#2B3836;
+  --active:#8FC3B0; --on-active:#121918; --focus:#E3B04B;
+  --bad:#E08A70; --bad-soft:#5A2E24; --mid-soft:#26302F; --good-soft:#244238; --good:#8FC3B0;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:1rem; line-height:1.5}
+.wrap{max-width:76rem; margin:0 auto; padding:1.5rem 1.25rem 3rem}
+header h1{font-size:clamp(2.3rem,6vw,3.8rem); font-weight:800; letter-spacing:-0.03em; line-height:1; margin:0 0 .5rem}
+header p{max-width:44rem; margin:0; color:var(--muted)}
+.layout{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,22rem); gap:2rem; margin-top:1.5rem; align-items:start}
+@media (max-width:60rem){ .layout{grid-template-columns:minmax(0,1fr)} }
+
+/* barra de juego */
+.top{display:flex; flex-wrap:wrap; gap:.75rem 1.25rem; align-items:center; margin-bottom:.9rem}
+.status{font-size:1.2rem; font-weight:800; margin:0; flex:1 1 16rem; min-height:1.8rem}
+.dice{display:flex; gap:.4rem; align-items:center}
+.die{width:2.4rem; height:2.4rem; border-radius:.5rem; background:var(--surface); border:1.5px solid var(--ink); display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); padding:.28rem}
+.die i{width:.42rem; height:.42rem; border-radius:50%; background:var(--ink); place-self:center}
+.die.used{opacity:.3}
+.die.small{width:1.9rem; height:1.9rem; padding:.22rem}
+.die.small i{width:.32rem; height:.32rem}
+.die.agent{background:var(--ink); border-color:var(--ink)}
+.die.agent i{background:var(--paper)}
+.buttons{display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem}
+.btn{appearance:none; font:inherit; font-weight:600; cursor:pointer; border:1.5px solid var(--ink); background:var(--ink); color:var(--paper); border-radius:12px; padding:.55rem 1.05rem}
+.btn.quiet{background:transparent; color:var(--ink); border-color:var(--rule)}
+.btn[hidden]{display:none}
+.btn:focus-visible, summary:focus-visible, .pt:focus-visible{outline:3px solid var(--focus); outline-offset:2px}
+
+/* tablero */
+.boardwrap{width:100%}
+svg.board{display:block; width:100%; height:auto; user-select:none; -webkit-user-select:none; touch-action:manipulation}
+.frame{fill:#2F4542}
+.felt{fill:#DCE3DD}
+.tri.a{fill:#B5A642} .tri.b{fill:#4F6B66}
+.ck.h{fill:#F7F2E6; stroke:#1D2827; stroke-width:2.5}
+.ck.a{fill:#1D2827; stroke:#F7F2E6; stroke-width:2.5}
+.cnt{font:700 26px "Bricolage Grotesque",system-ui,sans-serif; text-anchor:middle; dominant-baseline:central}
+.cnt.h{fill:#1D2827} .cnt.a{fill:#F7F2E6}
+.lbl{font:600 13px "Bricolage Grotesque",system-ui,sans-serif; fill:#C9D6D1; text-anchor:middle}
+.dest{fill:#E8792E; opacity:.85; stroke:#FFFFFF; stroke-width:3}
+.srcring{fill:none; stroke:#E8792E; stroke-width:5}
+.selring{fill:none; stroke:#E8792E; stroke-width:8}
+.lastmv{fill:none; stroke:#8FC3B0; stroke-width:4; stroke-dasharray:6 5}
+.hintmk{fill:#E8792E; font:800 22px "Bricolage Grotesque",system-ui,sans-serif; text-anchor:middle; dominant-baseline:central}
+.offbar.h{fill:#F7F2E6; stroke:#1D2827; stroke-width:1.5}
+.offbar.a{fill:#1D2827; stroke:#F7F2E6; stroke-width:1.5}
+.offglow{fill:#E8792E; opacity:.85}
+.pt{cursor:pointer; outline:none}
+.pips{display:flex; justify-content:space-between; color:var(--muted); font-size:.92rem; margin-top:.4rem; font-variant-numeric:tabular-nums}
+
+/* panel */
+h2{font-size:1.15rem; font-weight:800; margin:0 0 .6rem; letter-spacing:-0.01em}
+.block{border-top:1px solid var(--rule); padding-top:1.1rem; margin-bottom:1.6rem}
+.empty{color:var(--muted); margin:0}
+.hint{background:var(--surface); border:1px solid var(--rule); border-radius:12px; padding:.8rem 1rem; margin-bottom:1rem}
+.hint p{margin:0 0 .6rem}
+.grid21{display:grid; grid-template-columns:repeat(6,1fr); gap:4px; margin:.6rem 0 .5rem}
+.cell{border-radius:8px; padding:.3rem .1rem; text-align:center; font-variant-numeric:tabular-nums; line-height:1.15; border:2px solid transparent}
+.cell b{display:block; font-size:.95rem}
+.cell small{font-size:.72rem; color:var(--muted)}
+.cell.blank{visibility:hidden}
+.cell.vbad{background:var(--bad); color:#fff} .cell.vbad small{color:#fff}
+.cell.bad{background:var(--bad-soft)}
+.cell.mid{background:var(--mid-soft)}
+.cell.good{background:var(--good-soft)}
+.cell.rolled{border-color:var(--ink)}
+.cell .hit{display:inline-block; width:.5rem; height:.5rem; border-radius:50%; background:currentColor; margin-left:.2rem; vertical-align:middle}
+.keys{display:flex; flex-wrap:wrap; gap:.3rem .9rem; font-size:.82rem; color:var(--muted); margin-bottom:.6rem}
+.keys span::before{content:""; display:inline-block; width:.8rem; height:.8rem; border-radius:3px; margin-right:.3rem; vertical-align:-1px; background:var(--k)}
+.big{font-size:1.6rem; font-weight:800; line-height:1.1; margin:.2rem 0}
+dl{display:grid; grid-template-columns:auto 1fr; gap:.25rem 1rem; margin:0}
+dt{color:var(--muted)} dd{margin:0; font-weight:600; font-variant-numeric:tabular-nums}
+details{border-top:1px solid var(--rule); padding-top:1rem; margin-top:.5rem}
+summary{cursor:pointer; font-weight:800; font-size:1.1rem}
+details li{margin-bottom:.35rem}
+details ul{padding-left:1.2rem}
+a{color:inherit; text-underline-offset:3px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Backgammon</h1>
+    <p>Juegas contra un agente expectiminimax. Después de cada jugada tuya verás el nodo de azar: las 21 tiradas posibles del agente, cuáles te harían daño y la probabilidad de que te golpee.</p>
+  </header>
+
+  <div class="layout">
+    <section aria-label="Tablero">
+      <div class="top">
+        <p class="status" id="status" aria-live="polite">Preparando…</p>
+        <div class="dice" id="dice" aria-label="Dados"></div>
+      </div>
+      <div class="buttons">
+        <button class="btn" id="roll" type="button" hidden>Tirar los dados</button>
+        <button class="btn" id="done" type="button" hidden>Terminar turno</button>
+        <button class="btn" id="pass" type="button" hidden>Pasar el turno</button>
+        <button class="btn quiet" id="undo" type="button" hidden>Deshacer</button>
+        <button class="btn quiet" id="hintBtn" type="button" hidden>Pista</button>
+        <button class="btn quiet" id="newGame" type="button">Nueva partida</button>
+      </div>
+      <div id="hintBox"></div>
+      <div class="boardwrap"><svg class="board" id="board" viewBox="0 0 1000 720" role="img" aria-label="Tablero de backgammon"></svg></div>
+      <div class="pips"><span id="pipH"></span><span id="pipA"></span></div>
+    </section>
+
+    <section aria-label="Análisis">
+      <div class="block" aria-live="polite">
+        <h2>El nodo de azar</h2>
+        <div id="chance"><p class="empty">Cuando termines tu turno, aquí aparecerán las 21 tiradas posibles del agente: qué tan mal te iría con cada una y cuántas te pueden golpear.</p></div>
+      </div>
+      <div class="block" aria-live="polite">
+        <h2>Lo que pensó el agente</h2>
+        <div id="thought"><p class="empty">Todavía no ha jugado.</p></div>
+      </div>
+      <details>
+        <summary>Cómo se juega</summary>
+        <ul>
+          <li>Cada jugador tiene 15 fichas. Tú juegas con las claras y avanzas del punto 24 al 1: por arriba de derecha a izquierda y por abajo de izquierda a derecha. Tu casa son los puntos 1 a 6, abajo a la derecha.</li>
+          <li>Cada dado es un movimiento de una ficha. Con dobles mueves cuatro veces. Debes usar ambos dados si puedes; si solo cabe uno, el mayor.</li>
+          <li>No puedes caer en un punto con dos o más fichas del rival. Si caes en una ficha <b>sola</b> del rival, la golpeas: se va a la barra, en medio del tablero.</li>
+          <li>Con una ficha en la barra, primero debes entrarla en la casa del rival, arriba a la derecha: con un 1 entras al 24 y con un 6, al 19.</li>
+          <li>Cuando todas tus fichas están en tu casa, empiezas a sacarlas. Gana quien saque sus 15 fichas primero.</li>
+          <li>Para mover: toca una ficha (se marcan en naranja las que puedes mover) y luego el punto destino. Para sacar, toca la bandeja de la derecha.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Cómo decide el agente</summary>
+        <p>Expectiminimax de un nivel. Para cada jugada posible con sus dados, el agente considera las 21 tiradas tuyas, supone que responderás con tu mejor jugada y promedia, ponderando cada tirada por su probabilidad (1/36 los dobles, 1/18 las demás). Elige la jugada con el mejor promedio. Para ahorrar tiempo, solo analiza a fondo sus 12 jugadas más prometedoras.</p>
+        <p>La función de evaluación, desde tu punto de vista, suma: la diferencia de pips (cuánto le falta a cada uno para terminar), 4 puntos por cada ficha sola del rival menos cada ficha sola tuya, 3 por cada punto cerrado en tu casa menos los del rival, y 2 por cada ficha del rival en la barra menos las tuyas. En una carrera sin contacto solo cuentan los pips.</p>
+        <p>Código: <a href="https://github.com/ferdiex/backgammon">github.com/ferdiex/backgammon</a></p>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const rnd = n => 1 + Math.floor(Math.random() * n);
+  const FAST = /[?&]fast\b/.test(location.search);           // solo para pruebas automáticas
+  const sleep = ms => new Promise(r => setTimeout(r, FAST ? 0 : ms));
+  const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
+  /* ---------- estado ---------- */
+  let s, start, dice = [], done = [], seqs = [], turn = "H", sel = null, last = [], hint = null, chance = null, gen = 0, over = false;
+
+  /* ---------- geometría del tablero ---------- */
+  const PW = 410 / 6, R = 31, TOP = 20, BOT = 700, MID = 360, TRI = 280;
+  const ptX = p => p >= 13 ? (p <= 18 ? 20 + (p - 13) * PW : 490 + (p - 19) * PW)
+                           : (p >= 7 ? 20 + (12 - p) * PW : 490 + (6 - p) * PW);
+  const isTop = p => p >= 13;
+  const ckY = (p, k) => isTop(p) ? TOP + R + 2 * R * k : BOT - R - 2 * R * k;
+  const fmtPt = p => p === 25 || p === 0 ? "barra" : String(p);
+  const fmtMv = (m, who) => `${m.from === (who === "H" ? 25 : 0) ? "barra" : m.from}→${m.to === (who === "H" ? 0 : 25) ? "fuera" : m.to}`;
+  const fmtVal = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(1);
+
+  /* ---------- jugadas legales del humano a mitad de turno ---------- */
+  function legalNext(){
+    const k = done.length, out = [];
+    for (const x of seqs) {
+      if (x.seq.length <= k) continue;
+      let match = true;
+      for (let i = 0; i < k; i++) { const a = x.seq[i], b = done[i]; if (a.from !== b.from || a.to !== b.to || a.die !== b.die) { match = false; break; } }
+      if (!match) continue;
+      const m = x.seq[k];
+      if (!out.some(o => o.from === m.from && o.to === m.to && o.die === m.die)) out.push(m);
+    }
+    return out;
+  }
+  const remainingDice = () => { const r = dice.slice(); for (const m of done) r.splice(r.indexOf(m.die), 1); return r; };
+
+  /* ---------- dibujo ---------- */
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent){ const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function draw(){
+    const svg = $("board"); svg.innerHTML = "";
+    el("rect", { x: 0, y: 0, width: 1000, height: 720, rx: 18, class: "frame" }, svg);
+    el("rect", { x: 20, y: TOP, width: 410, height: BOT - TOP, class: "felt" }, svg);
+    el("rect", { x: 490, y: TOP, width: 410, height: BOT - TOP, class: "felt" }, svg);
+    const legal = turn === "H" && !over ? legalNext() : [];
+    const sources = new Set(legal.map(m => m.from));
+    const dests = new Set(sel === null ? [] : legal.filter(m => m.from === sel).map(m => m.to));
+    const hintFrom = new Map();
+    if (hint) hint.seq.forEach((m, i) => { if (!hintFrom.has(m.from)) hintFrom.set(m.from, i + 1); });
+    for (let p = 1; p <= 24; p++) {
+      const x = ptX(p), top = isTop(p);
+      const g = el("g", { class: "pt", tabindex: sources.has(p) || dests.has(p) ? 0 : -1, role: "button", "aria-label": label(p) }, svg);
+      el("rect", { x, y: top ? TOP : MID, width: PW, height: BOT - MID, fill: "transparent" }, g);
+      const tip = top ? TOP + TRI : BOT - TRI, base = top ? TOP : BOT;
+      el("polygon", { points: `${x},${base} ${x + PW},${base} ${x + PW / 2},${tip}`, class: "tri " + ((p % 2) ? "a" : "b") }, g);
+      if (dests.has(p)) el("polygon", { points: `${x},${base} ${x + PW},${base} ${x + PW / 2},${tip}`, class: "dest" }, g);
+      el("text", { x: x + PW / 2, y: top ? 14 : 714, class: "lbl" }, g).textContent = p;
+      const c = s.pts[p - 1], n = Math.abs(c), who = c > 0 ? "h" : "a";
+      for (let k = 0; k < Math.min(n, 5); k++) el("circle", { cx: x + PW / 2, cy: ckY(p, k), r: R - 2, class: "ck " + who }, g);
+      if (n > 5) el("text", { x: x + PW / 2, y: ckY(p, 4), class: "cnt " + who }, g).textContent = n;
+      if (n) {
+        const ty = ckY(p, Math.min(n, 5) - 1);
+        if (sel === p) el("circle", { cx: x + PW / 2, cy: ty, r: R + 1, class: "selring" }, g);
+        else if (sel === null && sources.has(p)) el("circle", { cx: x + PW / 2, cy: ty, r: R, class: "srcring" }, g);
+        if (hintFrom.has(p) && turn === "H") el("text", { x: x + PW / 2, y: top ? ty + R + 18 : ty - R - 18, class: "hintmk" }, g).textContent = "★";
+      }
+      if (last.includes(p) && n && sel !== p) el("circle", { cx: x + PW / 2, cy: ckY(p, Math.min(n, 5) - 1), r: R - 9, class: "lastmv" }, g);
+      g.addEventListener("click", () => clickPoint(p));
+      g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); clickPoint(p); } });
+    }
+    // barra
+    const bar = el("g", { class: "pt", tabindex: sources.has(25) ? 0 : -1, role: "button", "aria-label": `Barra: ${s.barH} tuyas, ${s.barA} del agente` }, svg);
+    el("rect", { x: 430, y: TOP, width: 60, height: BOT - TOP, fill: "#263936" }, bar);
+    for (let k = 0; k < Math.min(s.barA, 4); k++) el("circle", { cx: 460, cy: MID - 40 - k * 2 * R, r: R - 2, class: "ck a" }, bar);
+    if (s.barA > 4) el("text", { x: 460, y: MID - 40 - 3 * 2 * R, class: "cnt a" }, bar).textContent = s.barA;
+    for (let k = 0; k < Math.min(s.barH, 4); k++) el("circle", { cx: 460, cy: MID + 40 + k * 2 * R, r: R - 2, class: "ck h" }, bar);
+    if (s.barH > 4) el("text", { x: 460, y: MID + 40 + 3 * 2 * R, class: "cnt h" }, bar).textContent = s.barH;
+    if (s.barH) {
+      const ty = MID + 40 + (Math.min(s.barH, 4) - 1) * 2 * R;
+      if (sel === 25) el("circle", { cx: 460, cy: ty, r: R + 1, class: "selring" }, bar);
+      else if (sel === null && sources.has(25)) el("circle", { cx: 460, cy: ty, r: R, class: "srcring" }, bar);
+    }
+    bar.addEventListener("click", () => clickPoint(25));
+    // bandejas para sacar
+    const off = el("g", { class: "pt", tabindex: dests.has(0) ? 0 : -1, role: "button", "aria-label": `Sacar ficha. Fuera: ${s.offH} tuyas, ${s.offA} del agente` }, svg);
+    el("rect", { x: 910, y: TOP, width: 70, height: BOT - TOP, rx: 8, fill: "#263936" }, off);
+    if (dests.has(0)) el("rect", { x: 910, y: MID, width: 70, height: BOT - MID, rx: 8, class: "offglow" }, off);
+    for (let k = 0; k < s.offA; k++) el("rect", { x: 918, y: TOP + 8 + k * 21, width: 54, height: 17, rx: 4, class: "offbar a" }, off);
+    for (let k = 0; k < s.offH; k++) el("rect", { x: 918, y: BOT - 25 - k * 21, width: 54, height: 17, rx: 4, class: "offbar h" }, off);
+    off.addEventListener("click", () => clickPoint(0));
+    $("pipH").textContent = `Tú: ${BG.pip(s, "H")} pips, ${s.offH} fuera`;
+    $("pipA").textContent = `Agente: ${BG.pip(s, "A")} pips, ${s.offA} fuera`;
+  }
+  function label(p){
+    const c = s.pts[p - 1];
+    return `Punto ${p}: ` + (c > 0 ? `${c} tuyas` : c < 0 ? `${-c} del agente` : "vacío");
+  }
+  function drawDice(){
+    const box = $("dice"); box.innerHTML = "";
+    const used = turn === "H" ? done.map(m => m.die) : [];
+    const list = dice.length === 2 && dice[0] === dice[1] ? [dice[0], dice[0], dice[0], dice[0]] : dice.slice();
+    const usedCopy = used.slice();
+    list.forEach(d => {
+      const u = usedCopy.indexOf(d); const isUsed = u >= 0; if (isUsed) usedCopy.splice(u, 1);
+      box.appendChild(dieEl(d, (isUsed ? "used " : "") + (turn === "A" ? "agent " : "") + (list.length === 4 ? "small" : "")));
+    });
+  }
+  const PIPS = { 1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9] };
+  function dieEl(d, cls){
+    const e = document.createElement("div"); e.className = "die " + (cls || ""); e.setAttribute("aria-label", "dado " + d);
+    for (let i = 1; i <= 9; i++) { const dot = document.createElement("i"); if (!PIPS[d].includes(i)) dot.style.visibility = "hidden"; e.appendChild(dot); }
+    return e;
+  }
+
+  /* ---------- botones y estado ---------- */
+  function buttons(){
+    const myTurn = turn === "H" && !over;
+    const rolled = dice.length > 0;
+    const legal = myTurn && rolled ? legalNext() : [];
+    $("roll").hidden = !(myTurn && !rolled);
+    $("pass").hidden = !(myTurn && rolled && seqs.length === 0);
+    $("done").hidden = !(myTurn && rolled && seqs.length > 0 && legal.length === 0);
+    $("undo").hidden = !(myTurn && done.length > 0);
+    $("hintBtn").hidden = !(myTurn && rolled && seqs.length > 0);
+  }
+  const status = t => { $("status").textContent = t; };
+  function refresh(){ draw(); drawDice(); buttons(); }
+
+  /* ---------- interacción ---------- */
+  function clickPoint(p){
+    if (turn !== "H" || over || !dice.length) return;
+    const legal = legalNext();
+    if (sel !== null) {
+      const ms = legal.filter(m => m.from === sel && m.to === p);
+      if (ms.length) { ms.sort((a, b) => a.die - b.die); move(ms[0]); return; }
+    }
+    if (legal.some(m => m.from === p)) { sel = sel === p ? null : p; refresh(); return; }
+    sel = null; refresh();
+  }
+  function move(m){
+    done.push(m); s = BG.apply(s, "H", m); sel = null; last = [m.to];
+    const legal = legalNext();
+    if (BG.winner(s)) return finish();
+    status(legal.length ? `Te ${remainingDice().length === 1 ? "queda un dado" : "quedan " + remainingDice().length + " dados"}: elige otra ficha.` : "Listo. Revisa tu jugada y termina el turno.");
+    refresh();
+  }
+  function undo(){
+    done.pop(); s = start; for (const m of done) s = BG.apply(s, "H", m);
+    sel = null; last = []; status("Elige una ficha para mover."); refresh();
+  }
+  function humanRoll(d){
+    dice = d || [rnd(6), rnd(6)];
+    start = s; done = []; sel = null; hint = null; $("hintBox").innerHTML = "";
+    seqs = BG.sequences(s, "H", dice);
+    if (!seqs.length) status(`Sacaste ${dice.join("-")} y no tienes ninguna jugada posible: pasa el turno.`);
+    else status(`Sacaste ${dice.join("-")}. Toca una ficha marcada y luego su destino.`);
+    refresh();
+  }
+  async function showHint(){
+    $("hintBox").innerHTML = '<div class="hint"><p>El agente está pensando tu mejor jugada…</p></div>';
+    await frame();
+    const d = BG.decide(start, "H", dice);
+    hint = d;
+    const txt = d.seq.map(m => fmtMv(m, "H")).join(", ");
+    $("hintBox").innerHTML = `<div class="hint"><p><b>Sugerencia:</b> ${txt}. Las fichas que mueve están marcadas con ★.</p><button class="btn quiet" id="applyHint" type="button">Hacer esta jugada</button></div>`;
+    $("applyHint").addEventListener("click", () => {
+      s = start; done = [];
+      for (const m of d.seq) { done.push(m); s = BG.apply(s, "H", m); }
+      last = d.seq.map(m => m.to); hint = null; $("hintBox").innerHTML = "";
+      if (BG.winner(s)) return finish();
+      status("Listo. Revisa tu jugada y termina el turno."); refresh();
+    });
+    refresh();
+  }
+  async function endHumanTurn(){
+    const g = gen;
+    turn = "A"; dice = []; hint = null; sel = null; $("hintBox").innerHTML = "";
+    status("Calculando el nodo de azar…"); refresh(); await frame();
+    chance = BG.chanceNode(s);
+    renderChance(null);
+    status("Así se ve el nodo de azar. Ahora tira el agente…");
+    await sleep(1400); if (g !== gen) return;
+    agentTurn(g);
+  }
+  async function agentTurn(g, preset){
+    turn = "A";
+    dice = preset || [rnd(6), rnd(6)];
+    status(`El agente sacó ${dice.join("-")}.`); refresh();
+    if (chance) renderChance(dice);
+    await sleep(700); if (g !== gen) return;
+    status("El agente está pensando…"); await frame();
+    const t0 = performance.now();
+    const d = BG.decide(s, "A", dice);
+    const ms = performance.now() - t0;
+    renderThought(d, ms);
+    last = [];
+    for (const m of d.seq) {
+      if (g !== gen) return;
+      s = BG.apply(s, "A", m); last = [m.to]; refresh();
+      await sleep(450);
+    }
+    if (BG.winner(s)) return finish();
+    if (!d.seq.length) status(`El agente sacó ${dice.join("-")} y no tiene jugadas: pasa el turno.`), await sleep(1200);
+    if (g !== gen) return;
+    turn = "H"; dice = []; done = []; seqs = [];
+    status("Tu turno: tira los dados."); refresh();
+  }
+  function finish(){
+    over = true; dice = []; sel = null; hint = null; $("hintBox").innerHTML = "";
+    const w = BG.winner(s);
+    const gammon = w === "H" ? s.offA === 0 : s.offH === 0;
+    status(w === "H" ? `¡Ganaste${gammon ? ", y fue gammon: el agente no sacó ninguna ficha" : ""}!` : `Ganó el agente${gammon ? ", y fue gammon: no sacaste ninguna ficha" : ""}.`);
+    refresh();
+  }
+
+  /* ---------- paneles ---------- */
+  function renderChance(rolled){
+    const c = chance, exp = c.expected;
+    const cls = v => { const d = v - exp; return d <= -10 ? "vbad" : d <= -3 ? "bad" : d < 3 ? "mid" : "good"; };
+    let cells = "";
+    for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) {
+      if (b < a) { cells += '<div class="cell blank"></div>'; continue; }
+      const r = c.rows.find(x => (x.dice[0] === b && x.dice[1] === a) || (x.dice[0] === a && x.dice[1] === b));
+      const isRolled = rolled && ((rolled[0] === a && rolled[1] === b) || (rolled[0] === b && rolled[1] === a));
+      cells += `<div class="cell ${cls(r.value)} ${isRolled ? "rolled" : ""}" title="${a}-${b}: ${r.hit ? "te puede golpear; " : ""}valor ${fmtVal(r.value)}"><b>${a}-${b}${r.hit ? '<span class="hit" aria-label="golpe"></span>' : ""}</b><small>${a === b ? "1/36" : "1/18"}</small></div>`;
+    }
+    const pct = Math.round(100 * c.shots / 36);
+    $("chance").innerHTML = `
+      <p class="big">Te pueden golpear en ${c.shots} de 36 tiradas (${pct}%)</p>
+      <div class="grid21" role="img" aria-label="Las 21 tiradas del agente">${cells}</div>
+      <div class="keys"><span style="--k:var(--bad)">muy mala para ti</span><span style="--k:var(--bad-soft)">mala</span><span style="--k:var(--mid-soft)">promedio</span><span style="--k:var(--good-soft)">buena</span><span>● puede golpearte</span></div>
+      <dl><dt>Valor esperado</dt><dd>${fmtVal(exp)}</dd>${rolled ? `<dt>Salió</dt><dd>${rolled.join("-")}: valor ${fmtVal(c.rows.find(x => (x.dice[0] === Math.max(...rolled) && x.dice[1] === Math.min(...rolled))).value)}</dd>` : ""}</dl>
+      <p class="empty" style="margin-top:.5rem">Cada casilla es una tirada del agente seguida de su mejor respuesta según su evaluación. El valor esperado es el promedio ponderado por la probabilidad de cada tirada: positivo es bueno para ti.</p>`;
+  }
+  function renderThought(d, ms){
+    if (!d.seq.length) { $("thought").innerHTML = '<p class="empty">No tenía ninguna jugada posible.</p>'; return; }
+    $("thought").innerHTML = `<dl>
+      <dt>Jugada</dt><dd>${d.seq.map(m => fmtMv(m, "A")).join(", ")}</dd>
+      <dt>Posibles</dt><dd>${d.candidates} jugadas distintas</dd>
+      <dt>Analizó a fondo</dt><dd>${d.considered}, cada una contra tus 21 tiradas</dd>
+      <dt>Posiciones</dt><dd>${d.positions.toLocaleString("es-MX")}</dd>
+      <dt>Valor esperado</dt><dd>${fmtVal(d.value)} (negativo le conviene)</dd>
+      <dt>Tiempo</dt><dd>${ms < 10 ? ms.toFixed(1) : Math.round(ms)} ms</dd></dl>`;
+  }
+
+  /* ---------- partida ---------- */
+  async function newGame(){
+    gen++; const g = gen;
+    s = BG.initial(); start = s; dice = []; done = []; seqs = []; sel = null; last = []; hint = null; chance = null; over = false; turn = "H";
+    $("hintBox").innerHTML = "";
+    $("chance").innerHTML = '<p class="empty">Cuando termines tu turno, aquí aparecerán las 21 tiradas posibles del agente: qué tan mal te iría con cada una y cuántas te pueden golpear.</p>';
+    $("thought").innerHTML = '<p class="empty">Todavía no ha jugado.</p>';
+    refresh();
+    let h, a;
+    do { h = rnd(6); a = rnd(6); } while (h === a);
+    status(`Para empezar, cada quien tira un dado: tú ${h}, el agente ${a}.`);
+    $("dice").innerHTML = ""; $("dice").appendChild(dieEl(h, "")); $("dice").appendChild(dieEl(a, "agent"));
+    await sleep(1600); if (g !== gen) return;
+    if (h > a) { turn = "H"; humanRoll([h, a]); status(`Empiezas tú, con ${h}-${a}. Toca una ficha marcada y luego su destino.`); }
+    else agentTurn(g, [a, h]);
+  }
+
+  $("roll").addEventListener("click", () => humanRoll());
+  $("done").addEventListener("click", endHumanTurn);
+  $("pass").addEventListener("click", endHumanTurn);
+  $("undo").addEventListener("click", undo);
+  $("hintBtn").addEventListener("click", showHint);
+  $("newGame").addEventListener("click", newGame);
+  newGame();
+})();
+</script>
+</body>
+</html>

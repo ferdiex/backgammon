@@ -122,6 +122,8 @@ a{color:inherit; text-underline-offset:3px}
         <div class="dice" id="dice" aria-label="Dados"></div>
       </div>
       <div class="buttons">
+        <button class="btn" id="opening" type="button" hidden>Tirar para ver quién empieza</button>
+        <button class="btn" id="continue" type="button" hidden>Continuar</button>
         <button class="btn" id="roll" type="button" hidden>Tirar los dados</button>
         <button class="btn" id="done" type="button" hidden>Terminar turno</button>
         <button class="btn" id="pass" type="button" hidden>Pasar el turno</button>
@@ -147,6 +149,7 @@ a{color:inherit; text-underline-offset:3px}
         <summary>Cómo se juega</summary>
         <ul>
           <li>Cada jugador tiene 15 fichas. Tú juegas con las claras y avanzas del punto 24 al 1: por arriba de derecha a izquierda y por abajo de izquierda a derecha. Tu casa son los puntos 1 a 6, abajo a la derecha.</li>
+          <li>Para empezar, cada jugador tira un solo dado. El que saca el número mayor empieza, y su primera jugada usa los dos números que salieron. Si empatan, se tira otra vez.</li>
           <li>Cada dado es un movimiento de una ficha. Con dobles mueves cuatro veces. Debes usar ambos dados si puedes; si solo cabe uno, el mayor.</li>
           <li>No puedes caer en un punto con dos o más fichas del rival. Si caes en una ficha <b>sola</b> del rival, la golpeas: se va a la barra, en medio del tablero.</li>
           <li>Con una ficha en la barra, primero debes entrarla en la casa del rival, arriba a la derecha: con un 1 entras al 24 y con un 6, al 19.</li>
@@ -175,6 +178,7 @@ a{color:inherit; text-underline-offset:3px}
 
   /* ---------- estado ---------- */
   let s, start, dice = [], done = [], seqs = [], turn = "H", sel = null, last = [], hint = null, chance = null, gen = 0, over = false;
+  let phase = "opening", openDice = null;      // tirada inicial: un dado cada quien
 
   /* ---------- geometría del tablero ---------- */
   const PW = 410 / 6, R = 31, TOP = 20, BOT = 700, MID = 360, TRI = 280;
@@ -264,6 +268,10 @@ a{color:inherit; text-underline-offset:3px}
   }
   function drawDice(){
     const box = $("dice"); box.innerHTML = "";
+    if (phase === "opening") {
+      if (openDice) { box.appendChild(dieEl(openDice.h, "")); box.appendChild(dieEl(openDice.a, "agent")); }
+      return;
+    }
     const used = turn === "H" ? done.map(m => m.die) : [];
     const list = dice.length === 2 && dice[0] === dice[1] ? [dice[0], dice[0], dice[0], dice[0]] : dice.slice();
     const usedCopy = used.slice();
@@ -281,6 +289,11 @@ a{color:inherit; text-underline-offset:3px}
 
   /* ---------- botones y estado ---------- */
   function buttons(){
+    const opening = phase === "opening";
+    $("opening").hidden = !(opening && (!openDice || openDice.h === openDice.a));
+    $("opening").textContent = openDice && openDice.h === openDice.a ? "Tirar otra vez" : "Tirar para ver quién empieza";
+    $("continue").hidden = !(opening && openDice && openDice.h !== openDice.a);
+    if (opening) { ["roll", "pass", "done", "undo", "hintBtn"].forEach(id => { $(id).hidden = true; }); return; }
     const myTurn = turn === "H" && !over;
     const rolled = dice.length > 0;
     const legal = myTurn && rolled ? legalNext() : [];
@@ -319,8 +332,8 @@ a{color:inherit; text-underline-offset:3px}
     dice = d || [rnd(6), rnd(6)];
     start = s; done = []; sel = null; hint = null; $("hintBox").innerHTML = "";
     seqs = BG.sequences(s, "H", dice);
-    if (!seqs.length) status(`Sacaste ${dice.join("-")} y no tienes ninguna jugada posible: pasa el turno.`);
-    else status(`Sacaste ${dice.join("-")}. Toca una ficha marcada y luego su destino.`);
+    if (!seqs.length) status(`Sacaste ${dice.join("\u2011")} y no tienes ninguna jugada posible: pasa el turno.`);
+    else status(`Sacaste ${dice.join("\u2011")}. Toca una ficha marcada y luego su destino.`);
     refresh();
   }
   async function showHint(){
@@ -352,7 +365,7 @@ a{color:inherit; text-underline-offset:3px}
   async function agentTurn(g, preset){
     turn = "A";
     dice = preset || [rnd(6), rnd(6)];
-    status(`El agente sacó ${dice.join("-")}.`); refresh();
+    status(`El agente sacó ${dice.join("\u2011")}.`); refresh();
     if (chance) renderChance(dice);
     await sleep(700); if (g !== gen) return;
     status("El agente está pensando…"); await frame();
@@ -367,7 +380,7 @@ a{color:inherit; text-underline-offset:3px}
       await sleep(450);
     }
     if (BG.winner(s)) return finish();
-    if (!d.seq.length) status(`El agente sacó ${dice.join("-")} y no tiene jugadas: pasa el turno.`), await sleep(1200);
+    if (!d.seq.length) status(`El agente sacó ${dice.join("\u2011")} y no tiene jugadas: pasa el turno.`), await sleep(1200);
     if (g !== gen) return;
     turn = "H"; dice = []; done = []; seqs = [];
     status("Tu turno: tira los dados."); refresh();
@@ -396,7 +409,7 @@ a{color:inherit; text-underline-offset:3px}
       <p class="big">Te pueden golpear en ${c.shots} de 36 tiradas (${pct}%)</p>
       <div class="grid21" role="img" aria-label="Las 21 tiradas del agente">${cells}</div>
       <div class="keys"><span style="--k:var(--bad)">muy mala para ti</span><span style="--k:var(--bad-soft)">mala</span><span style="--k:var(--mid-soft)">promedio</span><span style="--k:var(--good-soft)">buena</span><span>● puede golpearte</span></div>
-      <dl><dt>Valor esperado</dt><dd>${fmtVal(exp)}</dd>${rolled ? `<dt>Salió</dt><dd>${rolled.join("-")}: valor ${fmtVal(c.rows.find(x => (x.dice[0] === Math.max(...rolled) && x.dice[1] === Math.min(...rolled))).value)}</dd>` : ""}</dl>
+      <dl><dt>Valor esperado</dt><dd>${fmtVal(exp)}</dd>${rolled ? `<dt>Salió</dt><dd>${rolled.join("\u2011")}: valor ${fmtVal(c.rows.find(x => (x.dice[0] === Math.max(...rolled) && x.dice[1] === Math.min(...rolled))).value)}</dd>` : ""}</dl>
       <p class="empty" style="margin-top:.5rem">Cada casilla es una tirada del agente seguida de su mejor respuesta según su evaluación. El valor esperado es el promedio ponderado por la probabilidad de cada tirada: positivo es bueno para ti.</p>`;
   }
   function renderThought(d, ms){
@@ -411,22 +424,33 @@ a{color:inherit; text-underline-offset:3px}
   }
 
   /* ---------- partida ---------- */
-  async function newGame(){
-    gen++; const g = gen;
+  function newGame(){
+    gen++;
     s = BG.initial(); start = s; dice = []; done = []; seqs = []; sel = null; last = []; hint = null; chance = null; over = false; turn = "H";
+    phase = "opening"; openDice = null;
     $("hintBox").innerHTML = "";
     $("chance").innerHTML = '<p class="empty">Cuando termines tu turno, aquí aparecerán las 21 tiradas posibles del agente: qué tan mal te iría con cada una y cuántas te pueden golpear.</p>';
     $("thought").innerHTML = '<p class="empty">Todavía no ha jugado.</p>';
+    status("Para empezar, cada quien tira un dado: el número mayor empieza.");
     refresh();
-    let h, a;
-    do { h = rnd(6); a = rnd(6); } while (h === a);
-    status(`Para empezar, cada quien tira un dado: tú ${h}, el agente ${a}.`);
-    $("dice").innerHTML = ""; $("dice").appendChild(dieEl(h, "")); $("dice").appendChild(dieEl(a, "agent"));
-    await sleep(1600); if (g !== gen) return;
-    if (h > a) { turn = "H"; humanRoll([h, a]); status(`Empiezas tú, con ${h}-${a}. Toca una ficha marcada y luego su destino.`); }
-    else agentTurn(g, [a, h]);
+  }
+  function openingRoll(){
+    const h = rnd(6), a = rnd(6);
+    openDice = { h, a };
+    if (h === a) status(`Los dos sacaron ${h}: empate. Hay que tirar otra vez.`);
+    else if (h > a) status(`Sacaste ${h} (dado claro) y el agente ${a} (dado oscuro): empiezas tú, y tu primera jugada usa los dos números, ${h}\u2011${a}.`);
+    else status(`Sacaste ${h} (dado claro) y el agente ${a} (dado oscuro): empieza el agente, y su primera jugada usa los dos números, ${a}\u2011${h}.`);
+    refresh();
+  }
+  function continueOpening(){
+    const { h, a } = openDice;
+    phase = "play";
+    if (h > a) { turn = "H"; humanRoll([h, a]); status(`Empiezas con ${h}\u2011${a}. Toca una ficha marcada y luego su destino.`); }
+    else agentTurn(gen, [a, h]);
   }
 
+  $("opening").addEventListener("click", openingRoll);
+  $("continue").addEventListener("click", continueOpening);
   $("roll").addEventListener("click", () => humanRoll());
   $("done").addEventListener("click", endHumanTurn);
   $("pass").addEventListener("click", endHumanTurn);

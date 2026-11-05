@@ -106,6 +106,28 @@ summary{cursor:pointer; font-weight:800; font-size:1.1rem}
 details li{margin-bottom:.35rem}
 details ul{padding-left:1.2rem}
 a{color:inherit; text-underline-offset:3px}
+
+/* diseña tu EVAL */
+.design{border-top:1px solid var(--rule); margin-top:2.5rem; padding-top:1.75rem}
+.design h2.sec{font-size:clamp(1.6rem,4vw,2.2rem); margin-bottom:.5rem}
+.design .lead{max-width:48rem; color:var(--muted); margin:0 0 1.25rem}
+.agents{display:grid; grid-template-columns:1fr 1fr; gap:1.25rem}
+@media (max-width:48rem){ .agents{grid-template-columns:1fr} }
+.agent{background:var(--surface); border:1px solid var(--rule); border-radius:14px; padding:1rem 1.1rem}
+.agent h3{margin:0 0 .6rem; font-size:1.15rem}
+.agent label.kind{display:grid; gap:.3rem; font-weight:600; margin-bottom:.7rem}
+.agent select{font:inherit; padding:.4rem .5rem; border-radius:8px; border:1px solid var(--rule); background:var(--paper); color:var(--ink)}
+.presets{display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.7rem}
+.presets button{font:inherit; font-size:.85rem; padding:.3rem .6rem; border-radius:999px; border:1px solid var(--rule); background:transparent; color:var(--ink); cursor:pointer}
+.wrow{display:grid; grid-template-columns:8.5rem 1fr 2.6rem; align-items:center; gap:.6rem; margin:.25rem 0}
+.wrow span.v{text-align:right; font-weight:700; font-variant-numeric:tabular-nums}
+.wrow input{width:100%; accent-color:var(--active)}
+.runbar{display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; margin:1.2rem 0 .8rem}
+.runbar label{display:flex; gap:.4rem; align-items:center; font-weight:600}
+.progress{height:.55rem; background:var(--rule); border-radius:4px; overflow:hidden; margin:.4rem 0 .8rem}
+.progress i{display:block; height:100%; width:0; background:var(--active)}
+.result{font-size:1.25rem; font-weight:800; margin:.2rem 0}
+.verdict{color:var(--muted); margin:0 0 1rem}
 </style>
 </head>
 <body>
@@ -165,6 +187,39 @@ a{color:inherit; text-underline-offset:3px}
       </details>
     </section>
   </div>
+
+  <section class="design" aria-label="Diseña tu propia EVAL">
+    <h2 class="sec">Diseña tu propia EVAL</h2>
+    <p class="lead">Dos agentes juegan muchas partidas entre sí y se cuenta cuántas gana el agente A. Cada agente evalúa las posiciones sumando cinco características multiplicadas por sus pesos. Mueve los pesos, predice quién ganará y juega el torneo.</p>
+    <div class="agents" id="agents"></div>
+    <div class="runbar">
+      <label>Partidas <select id="nGames"><option>100</option><option>200</option><option selected>400</option></select></label>
+      <button class="btn" id="runT" type="button">Jugar torneo: A contra B</button>
+      <button class="btn quiet" id="runC" type="button">Control: A contra A</button>
+      <button class="btn quiet" id="stopT" type="button" hidden>Detener</button>
+    </div>
+    <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+    <p class="result" id="tResult" aria-live="polite">Todavía no hay resultados.</p>
+    <p class="verdict" id="tVerdict"></p>
+    <details>
+      <summary>Qué mide cada peso</summary>
+      <ul>
+        <li><b>Pips:</b> cuántos puntos le faltan a cada lado para terminar; quien tiene menos va adelante en la carrera.</li>
+        <li><b>Fichas fuera:</b> las fichas que cada lado ya sacó del tablero.</li>
+        <li><b>Fichas sueltas:</b> fichas solas en un punto, que el rival puede comer. El peso castiga las tuyas y premia las del rival.</li>
+        <li><b>Puntos en casa:</b> puntos de tu casa con dos o más fichas; bloquean al rival.</li>
+        <li><b>Barra:</b> fichas comidas que esperan para volver a entrar.</li>
+      </ul>
+    </details>
+    <details>
+      <summary>Cómo funciona un torneo</summary>
+      <ul>
+        <li>El agente A juega con un color y el B con el otro. Quién empieza se alterna en cada partida, para que ninguno tenga ventaja.</li>
+        <li>El <b>codicioso</b> elige la jugada con mejor EVAL sin mirar hacia adelante. El <b>expectiminimax</b> además considera las 21 tiradas del rival; es más lento, así que conviene jugar menos partidas.</li>
+        <li>Corre siempre un <b>control</b>, A contra A: debe dar cerca del 50%. Con 400 partidas, cualquier diferencia de menos de unos 5 puntos es suerte.</li>
+      </ul>
+    </details>
+  </section>
 </div>
 
 <script src="engine.js"></script>
@@ -458,6 +513,58 @@ a{color:inherit; text-underline-offset:3px}
   $("hintBtn").addEventListener("click", showHint);
   $("newGame").addEventListener("click", newGame);
   newGame();
+})();
+</script>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const SL = [["pips", "Pips", 0, 3, 0.1], ["off", "Fichas fuera", 0, 30, 1], ["blots", "Fichas sueltas", 0, 10, 0.5], ["home", "Puntos en casa", 0, 10, 0.5], ["bar", "Barra", 0, 10, 0.5]];
+  const PRESETS = { "Por defecto": { pips: 1, off: 0, blots: 4, home: 3, bar: 2 }, "Solo pips": { pips: 1, off: 0, blots: 0, home: 0, bar: 0 }, "Presentación original": { pips: 0.05, off: 30, blots: 0, home: 0, bar: 0 } };
+  const agents = {};
+  function card(id, preset) {
+    const el = document.createElement("div"); el.className = "agent";
+    el.innerHTML = `<h3>Agente ${id}</h3>
+      <label class="kind">Cómo decide <select data-kind><option value="greedy">Codicioso: solo su EVAL</option><option value="expecti">Expectiminimax: mira las 21 tiradas (lento)</option></select></label>
+      <div class="presets">${Object.keys(PRESETS).map(p => `<button type="button" data-preset="${p}">${p}</button>`).join("")}</div>
+      ${SL.map(([k, l, mn, mx, st]) => `<div class="wrow"><span>${l}</span><input type="range" min="${mn}" max="${mx}" step="${st}" data-w="${k}" aria-label="${l}, agente ${id}"><span class="v" data-v="${k}"></span></div>`).join("")}`;
+    $("agents").appendChild(el);
+    const set = W => SL.forEach(([k]) => { el.querySelector(`[data-w="${k}"]`).value = W[k]; el.querySelector(`[data-v="${k}"]`).textContent = W[k]; });
+    el.querySelectorAll("[data-w]").forEach(inp => inp.addEventListener("input", () => { el.querySelector(`[data-v="${inp.dataset.w}"]`).textContent = inp.value; }));
+    el.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => set(PRESETS[b.dataset.preset])));
+    set(PRESETS[preset]);
+    agents[id] = () => {
+      const W = {}; SL.forEach(([k]) => { W[k] = parseFloat(el.querySelector(`[data-w="${k}"]`).value); });
+      const kind = el.querySelector("[data-kind]").value;
+      return { fn: kind === "greedy" ? BG.greedyAgent(W) : BG.expectiAgent(W, 12), W, kind };
+    };
+  }
+  card("A", "Por defecto"); card("B", "Solo pips");
+  let running = 0;
+  async function tournament(control) {
+    const run = ++running, n = parseInt($("nGames").value, 10);
+    const A = agents.A(), B = control ? agents.A() : agents.B();
+    $("runT").disabled = $("runC").disabled = true; $("stopT").hidden = false;
+    $("tVerdict").textContent = "";
+    let wins = 0, played = 0;
+    for (let i = 0; i < n; i++) {
+      if (run !== running) break;
+      if (BG.playGame(A.fn, B.fn, i % 2 ? "H" : "A", Math.random)) wins++;
+      played++;
+      $("prog").style.width = (100 * played / n) + "%";
+      $("tResult").textContent = `${control ? "Control: A contra A" : "A contra B"}: A lleva ${wins} de ${played} partidas (${(100 * wins / played).toFixed(1)}%)`;
+      if (i % (A.kind === "expecti" || B.kind === "expecti" ? 1 : 10) === 0) await new Promise(r => setTimeout(r, 0));
+    }
+    const pct = 100 * wins / played, noise = 1.96 * 50 / Math.sqrt(played), diff = Math.abs(pct - 50);
+    $("tResult").textContent = `${control ? "Control: A contra A" : "A contra B"}: A ganó ${wins} de ${played} partidas (${pct.toFixed(1)}%)`;
+    $("tVerdict").textContent = diff > noise
+      ? `La diferencia con el 50% (${diff.toFixed(1)} puntos) es mayor que el ruido (±${noise.toFixed(1)}): ${pct > 50 ? "A" : "B"} es mejor.`
+      : `La diferencia con el 50% (${diff.toFixed(1)} puntos) es menor que el ruido (±${noise.toFixed(1)}): con estas partidas no se puede decir cuál es mejor.`;
+    $("runT").disabled = $("runC").disabled = false; $("stopT").hidden = true;
+  }
+  $("runT").addEventListener("click", () => tournament(false));
+  $("runC").addEventListener("click", () => tournament(true));
+  $("stopT").addEventListener("click", () => { running++; $("runT").disabled = $("runC").disabled = false; $("stopT").hidden = true; });
 })();
 </script>
 </body>

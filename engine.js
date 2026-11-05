@@ -179,7 +179,7 @@
   for (let a = 1; a <= 6; a++) for (let b = a; b <= 6; b++) ROLLS.push({ dice: [b, a], w: a === b ? 1 : 2, p: (a === b ? 1 : 2) / 36 });
 
   /* ---------- Función de evaluación (desde el punto de vista del humano) ---------- */
-  const WEIGHTS = { pips: 1, blots: 4, home: 3, bar: 2 };
+  const WEIGHTS = { pips: 1, off: 0, blots: 4, home: 3, bar: 2 };
 
   function features(s) {
     let hiH = s.barH ? 25 : 0, loA = s.barA ? 0 : 25;
@@ -199,6 +199,7 @@
     }
     return {
       pipDiff: pip(s, "A") - pip(s, "H"),
+      offDiff: s.offH - s.offA,
       blotDiff: contact ? blotsA - blotsH : 0,
       homeDiff: contact ? homeH - homeA : 0,
       barDiff: s.barA - s.barH,
@@ -211,7 +212,7 @@
     if (w === "H") return 1000;
     if (w === "A") return -1000;
     const f = features(s);
-    return W.pips * f.pipDiff + W.blots * f.blotDiff + W.home * f.homeDiff + W.bar * f.barDiff;
+    return W.pips * f.pipDiff + (W.off || 0) * f.offDiff + W.blots * f.blotDiff + W.home * f.homeDiff + W.bar * f.barDiff;
   }
 
   /* ---------- Expectiminimax de un nivel ----------
@@ -271,7 +272,36 @@
     return { rows, shots, expected, now };
   }
 
-  const api = { initial, clone, key, winner, pip, allHome, singleMoves, apply, sequences, distinctResults,
+  /* ---------- Agentes para torneos (deciden en espejo: los dos colores juegan igual) ---------- */
+  function mirror(s) {
+    return { pts: s.pts.slice().reverse().map(c => -c), barH: s.barA, barA: s.barH, offH: s.offA, offA: s.offH };
+  }
+  function greedyAgent(W) {
+    const asH = (s, dice) => {
+      const opts = distinctResults(s, "H", dice);
+      if (!opts.length) return s;
+      let best = opts[0], bv = evaluate(opts[0].state, W);
+      for (const o of opts) { const v = evaluate(o.state, W); if (v > bv) { bv = v; best = o; } }
+      return best.state;
+    };
+    return (s, who, dice) => who === "H" ? asH(s, dice) : mirror(asH(mirror(s), dice));
+  }
+  function expectiAgent(W, beam) {
+    const asH = (s, dice) => { const d = decide(s, "H", dice, { weights: W, beam }); return d.seq.length ? d.state : s; };
+    return (s, who, dice) => who === "H" ? asH(s, dice) : mirror(asH(mirror(s), dice));
+  }
+  /* Una partida: el agente A juega con H y el B con A; regresa true si gana A. */
+  function playGame(agentA, agentB, first, rnd) {
+    let s = initial(), who = first;
+    for (let t = 0; t < 2000 && !winner(s); t++) {
+      const dice = [1 + Math.floor(rnd() * 6), 1 + Math.floor(rnd() * 6)];
+      s = (who === "H" ? agentA : agentB)(s, who, dice);
+      who = other(who);
+    }
+    return winner(s) === "H";
+  }
+
+  const api = { initial, mirror, greedyAgent, expectiAgent, playGame, clone, key, winner, pip, allHome, singleMoves, apply, sequences, distinctResults,
                 ROLLS, WEIGHTS, features, evaluate, decide, chanceNode, BAR, OFF, other };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BG = api;
